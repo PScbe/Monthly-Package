@@ -5,329 +5,119 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
   <title>Posible Studio Calculators</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='50' fill='%23facc15'/></svg>" />
-
-  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-  
-  <!-- Google Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
-
-  <!-- Firebase v8 SDKs -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-
-  <!-- React and ReactDOM -->
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-
   <style>
-    :root {
-        --studio-yellow: #fde047;
-        --studio-green: #064e3b;
-        --studio-green-dark: #022c22;
-    }
-    body { 
-        background-color: var(--studio-green);
-        color: var(--studio-yellow);
-        font-family: 'Plus Jakarta Sans', sans-serif;
-        background-image: radial-gradient(circle at 10% 10%, rgba(253, 224, 71, 0.05) 0%, transparent 25%),
-                          radial-gradient(circle at 90% 90%, rgba(253, 224, 71, 0.05) 0%, transparent 25%);
-        margin: 0; padding: 0;
-    }
-    
-    .glass-card {
-        background: rgba(2, 44, 34, 0.95);
-        backdrop-filter: blur(20px);
-        border: 1px solid rgba(253, 224, 71, 0.15);
-        border-radius: 2rem;
-        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-        width: 100%;
-        max-width: 480px;
-    }
-
-    .stepper-btn {
-        width: 32px; height: 32px;
-        display: flex; align-items: center; justify-content: center;
-        border-radius: 8px;
-        background: var(--studio-yellow);
-        color: var(--studio-green);
-        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    .stepper-btn:disabled { opacity: 0.1; cursor: not-allowed; filter: grayscale(1); }
-    
-    .tabular-nums { font-variant-numeric: tabular-nums; }
-    .modal-overlay { background: rgba(2, 44, 34, 0.9); backdrop-filter: blur(10px); }
-    .modal-content { animation: slideUp 0.3s ease-out; }
-    @keyframes slideUp { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-
-    .btn-toggle-active { background-color: var(--studio-yellow); color: var(--studio-green); }
-    .btn-toggle-inactive { background-color: rgba(255, 255, 255, 0.05); color: white; border: 1px solid rgba(255, 255, 255, 0.1); }
-
-    .cal-day { aspect-ratio: 1/1; display: flex; align-items: center; justify-content: center; border-radius: 0.5rem; font-size: 0.75rem; cursor: pointer; transition: all 0.2s; }
-    .cal-day-booked { background: #ef4444; color: white; }
+    :root { --studio-yellow: #fde047; --studio-green: #064e3b; }
+    body { background-color: var(--studio-green); color: var(--studio-yellow); font-family: 'Plus Jakarta Sans', sans-serif; background-image: radial-gradient(circle at 10% 10%, rgba(253, 224, 71, 0.05) 0%, transparent 25%), radial-gradient(circle at 90% 90%, rgba(253, 224, 71, 0.05) 0%, transparent 25%); margin: 0; padding: 0; }
+    .glass-card { background: rgba(2, 44, 34, 0.95); backdrop-filter: blur(20px); border: 1px solid rgba(253, 224, 71, 0.15); border-radius: 2rem; width: 100%; max-width: 480px; }
+    .stepper-btn { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 8px; background: var(--studio-yellow); color: var(--studio-green); }
+    .stepper-btn:disabled { opacity: 0.1; }
+    .cal-day { aspect-ratio: 1/1; display: flex; align-items: center; justify-content: center; border-radius: 0.5rem; font-size: 0.75rem; cursor: pointer; }
+    .cal-day-booked { background: #ef4444; color: white; font-weight: 700; box-shadow: 0 0 10px rgba(239, 68, 68, 0.4); }
     .cal-day-partial { background: #f97316; color: white; }
     .cal-day-today { border: 2px solid var(--studio-yellow); }
-    .cal-day-selected { background: var(--studio-yellow); color: var(--studio-green); font-weight: 800; }
+    .cal-day-selected { background: var(--studio-yellow); color: var(--studio-green); font-weight: 800; transform: scale(1.1); }
     .no-scrollbar::-webkit-scrollbar { display: none; }
-    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    .btn-toggle-active { background-color: var(--studio-yellow); color: var(--studio-green); }
+    .btn-toggle-inactive { background-color: rgba(255, 255, 255, 0.05); color: white; border: 1px solid rgba(255, 255, 255, 0.1); }
   </style>
 </head>
 <body class="min-h-[100dvh] flex flex-col items-center p-3 md:p-6 overflow-x-hidden">
   <div id="root" class="w-full flex flex-col items-center"></div>
-
   <script type="module">
     const { useState, useEffect, createElement, Fragment, useMemo } = window.React;
     const ReactDOM = window.ReactDOM;
-
-    // --- Firebase Setup ---
-    const firebaseConfig = {
-      apiKey: "AIzaSyAIHIVv6dJ0LlNqP_0qkYNok7xsbxHgdRY",
-      authDomain: "studio-space-rental-database.firebaseapp.com",
-      databaseURL: "https://studio-space-rental-database-default-rtdb.asia-southeast1.firebasedatabase.app",
-      projectId: "studio-space-rental-database",
-      storageBucket: "studio-space-rental-database.appspot.com",
-      messagingSenderId: "176375720882",
-      appId: "1:176375720882:web:ac012e2d33e8fec5ca52ab",
-      measurementId: "G-NWZ18H2CVT"
-    };
-
+    const firebase = window.firebase;
+    const firebaseConfig = { apiKey: "AIzaSyAIHIVv6dJ0LlNqP_0qkYNok7xsbxHgdRY", authDomain: "studio-space-rental-database.firebaseapp.com", databaseURL: "https://studio-space-rental-database-default-rtdb.asia-southeast1.firebasedatabase.app", projectId: "studio-space-rental-database", storageBucket: "studio-space-rental-database.appspot.com", messagingSenderId: "176375720882", appId: "1:176375720882:web:ac012e2d33e8fec5ca52ab", measurementId: "G-NWZ18H2CVT" };
     if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
     const rentalsRef = db.ref('rentals');
+    const getLocalDateString = (d=new Date()) => { const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), da=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${da}`; };
+    const formatTo12Hour = (t) => { if(!t) return ''; let [h,m]=t.split(':'); h=parseInt(h); const ap=h>=12?'PM':'AM'; h=h%12||12; return `${h}:${m} ${ap}`; };
 
-    // --- Local Date Helper (Prevents UTC day shifting) ---
-    const getLocalDateString = (date = new Date()) => {
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-    };
-
-    // --- Hourly Calculator ---
     function HourlyCalculator() {
-        const [cameras, setCameras] = useState(1);
-        const [hours, setHours] = useState(1);
-        const [isModalOpen, setIsModalOpen] = useState(false);
-        const rates = { 1: 2500, 2: 3500, 3: 4500 };
-
-        useEffect(() => { if (cameras === 3 && hours < 2) setHours(2); }, [cameras]);
-
-        const changeHours = (v) => { setHours(p => Math.max(cameras === 3 ? 2 : 1, p + v)); };
-        const changeCams = (v) => { setCameras(p => Math.min(3, Math.max(1, p + v))); };
-        const total = rates[cameras] * hours;
-
+        const [cams, setCams] = useState(1); const [hours, setHours] = useState(1); const [isModalOpen, setIsModalOpen] = useState(false); const rates = { 1: 2500, 2: 3500, 3: 4500 };
+        useEffect(() => { if (cams === 3 && hours < 2) setHours(2); }, [cams]);
+        const changeHours = (v) => setHours(p => Math.max(cams === 3 ? 2 : 1, p + v));
+        const changeCams = (v) => setCams(p => Math.min(3, Math.max(1, p + v)));
         const equipment = ["FX30 Camera and Sigma Lenses", "Nanlite 300b", "Godox TL60 RBG Tubes", "Shure SM7db Mics", "DJI Wireless Mics", "Zoom H6 Recorder"];
-
         return createElement('div', { className: "glass-card p-5 md:p-10 space-y-4 md:space-y-6" },
-            createElement('header', { className: "text-center" },
-                createElement('div', { className: "inline-block px-3 py-0.5 rounded-full bg-yellow-400/10 text-yellow-400 text-[8px] md:text-[10px] font-black uppercase tracking-[0.2em] border border-yellow-400/20 mb-1" }, "Hourly Rental"),
-                createElement('h1', { className: "text-2xl md:text-4xl font-extrabold tracking-tight text-white" }, "Posible ", createElement('span', { className: "text-yellow-400" }, "Studio")),
-                createElement('p', { className: "text-yellow-400/40 text-[8px] md:text-[10px] font-bold uppercase tracking-[0.3em] mt-0.5" }, "Price Calculator")
+            createElement('header', { className: "text-center" }, createElement('div', { className: "inline-block px-3 py-0.5 rounded-full bg-yellow-400/10 text-yellow-400 text-[8px] md:text-[10px] font-black uppercase tracking-[0.2em] border border-yellow-400/20 mb-1" }, "Hourly Rental"), createElement('h1', { className: "text-2xl md:text-4xl font-extrabold tracking-tight text-white" }, "Posible ", createElement('span', { className: "text-yellow-400" }, "Studio")), createElement('p', { className: "text-yellow-400/40 text-[8px] md:text-[10px] font-bold uppercase tracking-[0.3em] mt-0.5" }, "Price Calculator")),
+            createElement('div', { className: "flex gap-2.5 items-end" },
+                createElement('div', { className: "flex-1" }, createElement('label', { className: "block text-[8px] md:text-[10px] font-black uppercase text-yellow-400/30 mb-2" }, "Cams"), createElement('div', { className: "flex items-center justify-between bg-black/40 p-1.5 rounded-xl border border-white/5" }, createElement('button', { onClick: () => changeCams(-1), disabled: cams<=1, className: "stepper-btn" }, "-"), createElement('div', { className: "text-2xl font-black text-white" }, cams), createElement('button', { onClick: () => changeCams(1), disabled: cams>=3, className: "stepper-btn" }, "+"))),
+                createElement('div', { className: "flex-1" }, createElement('div', { className: "flex justify-between mb-2" }, createElement('label', { className: "text-[8px] md:text-[10px] font-black uppercase text-yellow-400/30" }, "Hours"), cams===3 && createElement('span', { className: "px-1 rounded-sm bg-yellow-400 text-green-950 text-[6px] font-black" }, "Min 2")), createElement('div', { className: "flex items-center justify-between bg-black/40 p-1.5 rounded-xl border border-white/5" }, createElement('button', { onClick: () => changeHours(-1), disabled: hours<=(cams===3?2:1), className: "stepper-btn" }, "-"), createElement('div', { className: "text-2xl font-black text-white tabular-nums" }, hours), createElement('button', { onClick: () => changeHours(1), className: "stepper-btn" }, "+")))
             ),
-            createElement('div', { className: "flex flex-row gap-2.5 items-end" },
-                createElement('div', { className: "flex-1" },
-                    createElement('label', { className: "block text-[8px] md:text-[10px] font-black uppercase tracking-widest text-yellow-400/30 mb-2" }, "Cams"),
-                    createElement('div', { className: "flex items-center justify-between bg-black/40 p-1 md:p-1.5 rounded-xl border border-white/5" },
-                        createElement('button', { onClick: () => changeCams(-1), disabled: cameras <= 1, className: "stepper-btn" }, "-"),
-                        createElement('div', { className: "text-xl md:text-3xl font-black text-white" }, cameras),
-                        createElement('button', { onClick: () => changeCams(1), disabled: cameras >= 3, className: "stepper-btn" }, "+")
-                    )
-                ),
-                createElement('div', { className: "flex-1" },
-                    createElement('div', { className: "flex justify-between items-center mb-2" },
-                        createElement('label', { className: "text-[8px] md:text-[10px] font-black uppercase tracking-widest text-yellow-400/30" }, "Hours"),
-                        cameras === 3 && createElement('span', { className: "px-1 py-0.5 rounded-sm bg-yellow-400 text-green-950 text-[6px] md:text-[8px] font-black uppercase" }, "Min 2")
-                    ),
-                    createElement('div', { className: "flex items-center justify-between bg-black/40 p-1 md:p-1.5 rounded-xl border border-white/5" },
-                        createElement('button', { onClick: () => changeHours(-1), disabled: hours <= (cameras === 3 ? 2 : 1), className: "stepper-btn" }, "-"),
-                        createElement('div', { className: "text-xl md:text-3xl font-black text-white tabular-nums" }, hours),
-                        createElement('button', { onClick: () => changeHours(1), className: "stepper-btn" }, "+")
-                    )
-                )
-            ),
-            createElement('div', { className: "space-y-3" },
-                createElement('button', { onClick: () => setIsModalOpen(true), className: "w-full py-2.5 rounded-xl bg-white/5 border border-white/10 text-yellow-400 text-[8px] md:text-[10px] font-black uppercase tracking-[0.2em]" }, "Equipment List"),
-                createElement('div', { className: "bg-yellow-400 rounded-2xl p-4 md:p-6 text-center shadow-xl shadow-yellow-400/10" },
-                    createElement('p', { className: "text-[8px] md:text-[10px] uppercase font-black text-green-950/40 mb-0.5" }, "Rental Price"),
-                    createElement('div', { className: "flex items-start justify-center text-green-950" },
-                        createElement('span', { className: "text-sm md:text-lg font-bold mt-1.5" }, "₹"),
-                        createElement('span', { className: "text-3xl md:text-5xl font-black tracking-tighter" }, total.toLocaleString('en-IN'))
-                    )
-                )
-            ),
-            isModalOpen && createElement('div', { className: "fixed inset-0 z-50 flex items-center justify-center p-4 modal-overlay", onClick: () => setIsModalOpen(false) },
-                createElement('div', { className: "bg-gray-900 w-full max-w-xs rounded-3xl p-6 modal-content", onClick: e => e.stopPropagation() },
-                    createElement('h2', { className: "text-sm font-black uppercase text-white mb-6" }, "Studio Gear"),
-                    createElement('div', { className: "space-y-3" }, equipment.map(item => createElement('div', { key: item, className: "flex items-center gap-3" }, createElement('div', { className: "w-1 h-1 rounded-full bg-yellow-400" }), createElement('span', { className: "text-xs font-bold text-yellow-400/80" }, item)))),
-                    createElement('button', { onClick: () => setIsModalOpen(false), className: "w-full mt-8 py-3 bg-yellow-400 text-green-950 font-black rounded-xl text-[9px]" }, "Done")
-                )
-            )
+            createElement('div', { className: "space-y-3" }, createElement('button', { onClick: () => setIsModalOpen(true), className: "w-full py-2.5 rounded-xl bg-white/5 border border-white/10 text-yellow-400 text-[8px] md:text-[10px] font-black uppercase tracking-[0.2em]" }, "Equipment List"), createElement('div', { className: "bg-yellow-400 rounded-2xl p-4 md:p-6 text-center" }, createElement('p', { className: "text-[8px] font-black text-green-950/40 mb-0.5" }, "Rental Price"), createElement('div', { className: "flex justify-center text-green-950" }, createElement('span', { className: "text-sm font-bold mt-1.5" }, "₹"), createElement('span', { className: "text-4xl font-black tracking-tighter" }, (rates[cams]*hours).toLocaleString('en-IN'))))),
+            isModalOpen && createElement('div', { className: "fixed inset-0 z-50 flex items-center justify-center p-4 modal-overlay", onClick: () => setIsModalOpen(false) }, createElement('div', { className: "bg-gray-900 w-full max-w-xs rounded-3xl p-6 modal-content", onClick: e => e.stopPropagation() }, createElement('h2', { className: "text-sm font-black uppercase text-white mb-6" }, "Studio Gear"), createElement('div', { className: "space-y-3" }, equipment.map(item => createElement('div', { key: item, className: "flex items-center gap-3" }, createElement('div', { className: "w-1 h-1 rounded-full bg-yellow-400" }), createElement('span', { className: "text-xs font-bold text-yellow-400/80" }, item)))), createElement('button', { onClick: () => setIsModalOpen(false), className: "w-full mt-8 py-3 bg-yellow-400 text-green-950 font-black rounded-xl text-[9px]" }, "Done")))
         );
     }
 
-    // --- Package Calculator ---
     function PackageCalculator() {
-        const [cams, setCams] = useState(1);
-        const [reels, setReels] = useState(5);
-        const [vids, setVids] = useState(0);
-        const [posters, setPosters] = useState(0);
-        const [sameShoot, setSameShoot] = useState(true);
-
-        const reelRate = cams === 3 ? 4500 : 3500;
-        const editRate = cams === 1 ? 1500 : cams === 2 ? 2500 : 3500;
-        
-        let shootHours = Math.ceil(reels / 2) + (vids > 0 && !sameShoot ? Math.ceil(vids / 2) : 0);
-        if (vids > 0) shootHours = Math.max(shootHours, Math.ceil((vids * 15 + 30) / 60));
-
-        let shootCost = 0;
-        if (shootHours > 0) {
-            if (cams === 1) shootCost = 1500 + Math.max(0, shootHours - 1) * 1000;
-            else if (cams === 2) shootCost = 2500 + Math.max(0, shootHours - 1) * 2000;
-            else shootCost = 3500 + (shootHours > 1 ? 3500 : 0) + (shootHours > 2 ? (shootHours - 2) * 2500 : 0);
-        }
-
+        const [cams, setCams] = useState(1); const [reels, setReels] = useState(5); const [vids, setVids] = useState(0); const [posters, setPosters] = useState(0); const [sameShoot, setSameShoot] = useState(true);
+        const reelRate = cams === 3 ? 4500 : 3500; const editRate = cams === 1 ? 1500 : cams === 2 ? 2500 : 3500;
+        let shootHours = Math.ceil(reels / 2) + (vids > 0 && !sameShoot ? Math.ceil(vids / 2) : 0); if (vids > 0) shootHours = Math.max(shootHours, Math.ceil((vids * 15 + 30) / 60));
+        let shootCost = 0; if (shootHours > 0) { if (cams === 1) shootCost = 1500 + Math.max(0, shootHours - 1) * 1000; else if (cams === 2) shootCost = 2500 + Math.max(0, shootHours - 1) * 2000; else shootCost = 3500 + (shootHours > 1 ? 3500 : 0) + (shootHours > 2 ? (shootHours - 2) * 2500 : 0); }
         const total = shootCost + (reels * reelRate) + (vids * editRate) + (posters * 500);
-
-        const Stepper = (val, set, min = 0) => createElement('div', { className: "flex items-center space-x-2" },
-            createElement('button', { onClick: () => set(Math.max(min, val - 1)), className: "stepper-btn" }, "-"),
-            createElement('span', { className: "w-6 text-center font-bold text-yellow-400 text-sm" }, val),
-            createElement('button', { onClick: () => set(val + 1), className: "stepper-btn" }, "+")
-        );
-
-        return createElement('div', { className: "glass-card p-5 md:p-10 space-y-4" },
-            createElement('header', { className: "text-center" },
-                createElement('div', { className: "inline-block px-3 py-0.5 rounded-full bg-yellow-400/10 text-yellow-400 text-[8px] md:text-[10px] font-black uppercase border border-yellow-400/20 mb-1" }, "Monthly Package"),
-                createElement('h2', { className: "text-2xl md:text-3xl font-extrabold text-white" }, "Possible Studio")
-            ),
-            createElement('div', { className: "space-y-4" },
-                createElement('div', { className: "grid grid-cols-3 gap-1.5" },
-                    [1, 2, 3].map(n => createElement('button', { key: n, onClick: () => setCams(n), className: `py-2 rounded-lg text-[10px] font-bold ${cams === n ? 'btn-toggle-active' : 'btn-toggle-inactive'}` }, `${n} Cam`))
-                ),
-                createElement('div', { className: "bg-black/30 p-4 rounded-xl space-y-3 border border-white/5" },
-                    createElement('div', { className: "flex justify-between items-center" }, createElement('span', { className: "text-xs font-bold text-gray-300" }, "Reels (Min 5)"), Stepper(reels, setReels, 5)),
-                    createElement('div', { className: "flex justify-between items-center" }, createElement('div', null, createElement('span', { className: "text-xs font-bold text-gray-300 block" }, "Full Videos"), createElement('span', { className: "text-[9px] text-gray-500" }, "8-15 min")), Stepper(vids, setVids)),
-                    vids > 0 && createElement('label', { className: "flex items-center gap-2 cursor-pointer" }, createElement('input', { type: "checkbox", checked: sameShoot, onChange: e => setSameShoot(e.target.checked), className: "w-4 h-4 accent-yellow-400" }), createElement('span', { className: "text-[10px] text-gray-400" }, "Same shoot for reels & video")),
-                    createElement('div', { className: "flex justify-between items-center" }, createElement('span', { className: "text-xs font-bold text-gray-300" }, "Posters"), Stepper(posters, setPosters))
-                )
-            ),
-            createElement('div', { className: "grid grid-cols-2 gap-2" },
-                createElement('div', { className: "bg-white/5 p-3 rounded-xl text-center" }, createElement('span', { className: "text-[9px] text-gray-500 block" }, "Shoot Time"), createElement('span', { className: "text-xl font-bold text-white" }, `${shootHours} Hrs`)),
-                createElement('div', { className: "bg-yellow-400 p-3 rounded-xl text-center shadow-lg shadow-yellow-400/10" }, createElement('span', { className: "text-[9px] text-green-950/50 block" }, "Total Est."), createElement('span', { className: "text-xl font-black text-green-950" }, `₹${total.toLocaleString('en-IN')}`))
-            )
-        );
+        const Stepper = (val, set, min = 0) => createElement('div', { className: "flex items-center space-x-2" }, createElement('button', { onClick: () => set(Math.max(min, val - 1)), className: "stepper-btn" }, "-"), createElement('span', { className: "w-6 text-center font-bold text-yellow-400 text-sm" }, val), createElement('button', { onClick: () => set(val + 1), className: "stepper-btn" }, "+"));
+        return createElement('div', { className: "glass-card p-5 md:p-10 space-y-4" }, createElement('header', { className: "text-center" }, createElement('div', { className: "inline-block px-3 py-0.5 rounded-full bg-yellow-400/10 text-yellow-400 text-[8px] md:text-[10px] font-black uppercase border border-yellow-400/20 mb-1" }, "Monthly Package"), createElement('h2', { className: "text-2xl md:text-3xl font-extrabold text-white" }, "Possible Studio")), createElement('div', { className: "space-y-4" }, createElement('div', { className: "grid grid-cols-3 gap-1.5" }, [1, 2, 3].map(n => createElement('button', { key: n, onClick: () => setCams(n), className: `py-2 rounded-lg text-[10px] font-bold ${cams === n ? 'btn-toggle-active' : 'btn-toggle-inactive'}` }, `${n} Cam`))), createElement('div', { className: "bg-black/30 p-4 rounded-xl space-y-3 border border-white/5" }, createElement('div', { className: "flex justify-between items-center" }, createElement('span', { className: "text-xs font-bold text-gray-300" }, "Reels (Min 5)"), Stepper(reels, setReels, 5)), createElement('div', { className: "flex justify-between items-center" }, createElement('div', null, createElement('span', { className: "text-xs font-bold text-gray-300 block" }, "Full Videos"), createElement('span', { className: "text-[9px] text-gray-500" }, "8-15 min")), Stepper(vids, setVids)), vids > 0 && createElement('label', { className: "flex items-center gap-2 cursor-pointer" }, createElement('input', { type: "checkbox", checked: sameShoot, onChange: e => setSameShoot(e.target.checked), className: "w-4 h-4 accent-yellow-400" }), createElement('span', { className: "text-[10px] text-gray-400" }, "Same shoot for reels & video")), createElement('div', { className: "flex justify-between items-center" }, createElement('span', { className: "text-xs font-bold text-gray-300" }, "Posters"), Stepper(posters, setPosters)))), createElement('div', { className: "grid grid-cols-2 gap-2" }, createElement('div', { className: "bg-white/5 p-3 rounded-xl text-center" }, createElement('span', { className: "text-[9px] text-gray-500 block" }, "Shoot Time"), createElement('span', { className: "text-xl font-bold text-white" }, `${shootHours} Hrs`)), createElement('div', { className: "bg-yellow-400 p-3 rounded-xl text-center" }, createElement('span', { className: "text-[9px] text-green-950/50 block" }, "Total Est."), createElement('span', { className: "text-xl font-black text-green-950" }, `₹${total.toLocaleString('en-IN')}`))));
     }
 
-    // --- Slot Availability ---
     function SlotAvailability() {
         const [selectedDate, setSelectedDate] = useState(getLocalDateString());
         const [bookings, setBookings] = useState([]);
         const [currentMonth, setCurrentMonth] = useState(new Date());
-
         useEffect(() => {
-            const listener = rentalsRef.on('value', snap => {
+            rentalsRef.on('value', snap => {
                 const data = [];
                 snap.forEach(child => {
                     const val = child.val();
                     if (val && val.bookingSegments) {
                         val.bookingSegments.forEach(seg => {
-                            data.push({ 
-                                date: seg.date, 
-                                start: seg.startTime, 
-                                end: seg.endTime || '23:59', 
-                                type: val.isPossibleStudioShoot ? 'Possible' : (val.isInHouseClient ? 'InHouse' : 'Rental'),
-                                client: val.clientName
-                            });
+                            // AVAILABILITY LOGIC FIX:
+                            // We look at the PARENT booking object (val) to determine if it is blocked
+                            const isBlocked = val.isNotAvailable === true || val.isPossibleStudioShoot || val.isInHouseClient;
+                            data.push({ date: seg.date, start: seg.startTime, end: seg.endTime||'23:59', isBlocked: isBlocked, type: isBlocked ? 'Blocked' : 'Rental', client: val.clientName });
                         });
                     }
                 });
                 setBookings(data);
             });
-            return () => rentalsRef.off('value', listener);
         }, []);
-
-        const daysInMonth = useMemo(() => {
-            const year = currentMonth.getFullYear();
-            const month = currentMonth.getMonth();
-            const date = new Date(year, month, 1);
-            const days = [];
-            while (date.getMonth() === month) { days.push(new Date(date)); date.setDate(date.getDate() + 1); }
-            return days;
-        }, [currentMonth]);
-
-        const selectedDayBookings = useMemo(() => {
-            return bookings.filter(b => b.date === selectedDate).sort((a,b) => a.start.localeCompare(b.start));
-        }, [bookings, selectedDate]);
+        const daysInMonth = useMemo(() => { const d=new Date(currentMonth.getFullYear(),currentMonth.getMonth(),1); const res=[]; while(d.getMonth()===currentMonth.getMonth()){res.push(new Date(d));d.setDate(d.getDate()+1);} return res; }, [currentMonth]);
+        const selectedDayBookings = useMemo(() => bookings.filter(b=>b.date===selectedDate).sort((a,b)=>a.start.localeCompare(b.start)), [bookings,selectedDate]);
 
         return createElement('div', { className: "glass-card p-5 md:p-8 space-y-6" },
-            createElement('header', { className: "text-center" },
-                createElement('div', { className: "inline-block px-3 py-0.5 rounded-full bg-yellow-400/10 text-yellow-400 text-[8px] md:text-[10px] font-black uppercase tracking-[0.2em] border border-yellow-400/20 mb-1" }, "Slot Finder"),
-                createElement('h2', { className: "text-2xl font-extrabold text-white" }, "Availability")
-            ),
-
+            createElement('header', { className: "text-center" }, createElement('div', { className: "inline-block px-3 py-0.5 rounded-full bg-yellow-400/10 text-yellow-400 text-[8px] md:text-[10px] font-black uppercase tracking-[0.2em] border border-yellow-400/20 mb-1" }, "Slot Finder"), createElement('h2', { className: "text-2xl font-extrabold text-white" }, "Availability")),
             createElement('div', { className: "space-y-4" },
-                createElement('div', { className: "flex justify-between items-center px-2" },
-                    createElement('button', { onClick: () => setCurrentMonth(new Date(currentMonth.setMonth(currentMonth.getMonth()-1))), className: "text-yellow-400 font-black p-2" }, "<"),
-                    createElement('span', { className: "text-sm font-bold text-white uppercase tracking-widest" }, 
-                        currentMonth.toLocaleDateString('default', { month: 'long', year: 'numeric' })
-                    ),
-                    createElement('button', { onClick: () => setCurrentMonth(new Date(currentMonth.setMonth(currentMonth.getMonth()+1))), className: "text-yellow-400 font-black p-2" }, ">")
-                ),
-                createElement('div', { className: "grid grid-cols-7 gap-1" },
-                    ['S','M','T','W','T','F','S'].map(d => createElement('div', { key: d, className: "text-center text-[8px] text-gray-500 font-black py-1" }, d)),
-                    Array(daysInMonth[0].getDay()).fill(null).map((_, i) => createElement('div', { key: `empty-${i}` })),
-                    daysInMonth.map(date => {
-                        const dateStr = getLocalDateString(date);
-                        const dayBookings = bookings.filter(b => b.date === dateStr);
-                        const isToday = dateStr === getLocalDateString();
-                        const isSelected = dateStr === selectedDate;
-                        let statusCls = "";
-                        if (dayBookings.length > 0) {
-                            statusCls = dayBookings.some(b => !b.end || (b.start === "00:00" && b.end === "23:59")) ? "cal-day-booked" : "cal-day-partial";
-                        }
-                        return createElement('div', { 
-                            key: dateStr, 
-                            onClick: () => setSelectedDate(dateStr),
-                            className: `cal-day ${statusCls} ${isToday ? 'cal-day-today' : ''} ${isSelected ? 'cal-day-selected' : 'bg-white/5 text-gray-300'}`
-                        }, date.getDate());
-                    })
-                )
+                createElement('div', { className: "flex justify-between items-center px-2" }, createElement('button', { onClick: () => setCurrentMonth(new Date(currentMonth.setMonth(currentMonth.getMonth()-1))), className: "text-yellow-400 font-black p-2" }, "<"), createElement('span', { className: "text-sm font-bold text-white uppercase tracking-widest" }, currentMonth.toLocaleDateString('default', { month: 'long', year: 'numeric' })), createElement('button', { onClick: () => setCurrentMonth(new Date(currentMonth.setMonth(currentMonth.getMonth()+1))), className: "text-yellow-400 font-black p-2" }, ">")),
+                createElement('div', { className: "grid grid-cols-7 gap-1" }, ['S','M','T','W','T','F','S'].map(d=>createElement('div',{key:d,className:"text-center text-[8px] text-gray-500 font-black py-1"},d)), Array(daysInMonth[0].getDay()).fill(null).map((_,i)=>createElement('div',{key:`e${i}`})), daysInMonth.map(date=>{
+                    const dateStr=getLocalDateString(date); const dayBookings=bookings.filter(b=>b.date===dateStr);
+                    let statusCls="bg-white/5 text-gray-300";
+                    if(dayBookings.length>0) {
+                        const hasFullBlock = dayBookings.some(b => b.isBlocked);
+                        statusCls = hasFullBlock ? "cal-day-booked" : "cal-day-partial";
+                    }
+                    return createElement('div', { key: dateStr, onClick: () => setSelectedDate(dateStr), className: `cal-day ${statusCls} ${dateStr===getLocalDateString()?'cal-day-today':''} ${dateStr===selectedDate?'cal-day-selected':''}` }, date.getDate());
+                }))
             ),
-
             createElement('div', { className: "bg-black/30 rounded-xl overflow-hidden border border-white/5" },
-                createElement('div', { className: "p-3 bg-white/5 border-b border-white/5 text-[10px] font-black text-yellow-400 uppercase tracking-widest" }, 
-                    new Date(selectedDate).toLocaleDateString('default', { day: 'numeric', month: 'short', weekday: 'long' })
-                ),
+                createElement('div', { className: "p-3 bg-white/5 border-b border-white/5 text-[10px] font-black text-yellow-400 uppercase tracking-widest" }, new Date(selectedDate).toLocaleDateString('default', { day: 'numeric', month: 'short', weekday: 'long' })),
                 createElement('div', { className: "max-h-[220px] overflow-y-auto no-scrollbar p-2 space-y-2" },
-                    selectedDayBookings.length > 0 ? 
-                        selectedDayBookings.map((b, idx) => createElement('div', { key: idx, className: "p-3 rounded-xl bg-red-500/10 border border-red-500/20" },
-                            createElement('div', { className: "flex justify-between items-center mb-1" },
-                                createElement('span', { className: "text-[9px] font-black text-red-400 uppercase tracking-widest" }, b.type),
-                                createElement('span', { className: "text-[10px] font-bold text-gray-400 tabular-nums" }, `${b.start} - ${b.end}`)
-                            ),
-                            createElement('div', { className: "text-xs font-bold text-white" }, b.client || 'Studio Shoot')
-                        )) :
-                        createElement('div', { className: "py-10 text-center" },
-                            createElement('div', { className: "inline-block mb-2 p-2 rounded-full bg-emerald-500/10" }, 
-                                createElement('svg', { className: "w-5 h-5 text-emerald-400", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor" }, 
-                                    createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M5 13l4 4L19 7" })
-                                )
-                            ),
-                            createElement('p', { className: "text-[10px] font-black text-emerald-400 uppercase tracking-[0.2em]" }, "Studio Free - No Bookings")
-                        )
+                    selectedDayBookings.length > 0 ? selectedDayBookings.map((b,i)=>createElement('div',{key:i,className:`p-3 rounded-xl border ${b.isBlocked?'bg-red-500/10 border-red-500/20':'bg-orange-500/10 border-orange-500/20'}`},
+                        createElement('div', { className: "flex justify-between items-center mb-1" }, createElement('span', { className: `text-[9px] font-black uppercase tracking-widest ${b.isBlocked?'text-red-400':'text-orange-400'}` }, b.isBlocked?"BLOCKED":"RENTAL"), createElement('span', { className: "text-[10px] font-bold text-gray-400 tabular-nums" }, b.isBlocked?"Unavailable":`${formatTo12Hour(b.start)} - ${formatTo12Hour(b.end)}`)),
+                        createElement('div', { className: "text-xs font-bold text-white" }, b.isBlocked ? "Studio Unavailable" : (b.client||"Studio Shoot"))
+                    )) : createElement('div', { className: "py-10 text-center" }, createElement('p', { className: "text-[10px] font-black text-emerald-400 uppercase tracking-[0.2em]" }, "Studio Free"))
                 )
             ),
-
-            createElement('div', { className: "flex justify-center gap-4" },
-                createElement('div', { className: "flex items-center gap-1.5" }, createElement('div', { className: "w-2 h-2 rounded bg-white/10" }), createElement('span', { className: "text-[8px] font-bold text-gray-500" }, "Available")),
-                createElement('div', { className: "flex items-center gap-1.5" }, createElement('div', { className: "w-2 h-2 rounded bg-orange-500" }), createElement('span', { className: "text-[8px] font-bold text-gray-500" }, "Partial")),
-                createElement('div', { className: "flex items-center gap-1.5" }, createElement('div', { className: "w-2 h-2 rounded bg-red-500" }), createElement('span', { className: "text-[8px] font-bold text-gray-500" }, "Full Day"))
-            )
+            createElement('div', { className: "flex justify-center gap-4" }, createElement('div', { className: "flex items-center gap-1.5" }, createElement('div', { className: "w-2 h-2 rounded bg-white/10" }), createElement('span', { className: "text-[8px] font-bold text-gray-500" }, "Free")), createElement('div', { className: "flex items-center gap-1.5" }, createElement('div', { className: "w-2 h-2 rounded bg-orange-500" }), createElement('span', { className: "text-[8px] font-bold text-gray-500" }, "Partial")), createElement('div', { className: "flex items-center gap-1.5" }, createElement('div', { className: "w-2 h-2 rounded bg-red-500" }), createElement('span', { className: "text-[8px] font-bold text-gray-500" }, "Blocked")))
         );
     }
 
-    // --- Main App ---
     function App() {
         const [tab, setTab] = useState('hourly');
         return createElement(Fragment, null,
@@ -336,12 +126,9 @@
                 createElement('button', { onClick: () => setTab('package'), className: `px-4 md:px-6 py-2 rounded-full text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all ${tab === 'package' ? 'bg-yellow-400 text-green-950' : 'text-gray-500'}` }, "Package"),
                 createElement('button', { onClick: () => setTab('avail'), className: `px-4 md:px-6 py-2 rounded-full text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all ${tab === 'avail' ? 'bg-yellow-400 text-green-950' : 'text-gray-500'}` }, "Availability")
             ),
-            tab === 'hourly' ? createElement(HourlyCalculator) : 
-            tab === 'package' ? createElement(PackageCalculator) : 
-            createElement(SlotAvailability)
+            tab === 'hourly' ? createElement(HourlyCalculator) : tab === 'package' ? createElement(PackageCalculator) : createElement(SlotAvailability)
         );
     }
-
     ReactDOM.createRoot(document.getElementById('root')).render(createElement(App));
   </script>
 </body>
