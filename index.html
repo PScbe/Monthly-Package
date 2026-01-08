@@ -1,357 +1,348 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full bg-black">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Studio Package Calculator</title>
-    <!-- Load Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-        }
-        /* Custom styles for a cohesive look */
-        .btn-toggle {
-            transition: background-color 0.2s, color 0.2s;
-        }
-        .btn-toggle-active {
-            background-color: #eab308; /* yellow-500 */
-            color: #000000;
-        }
-        .btn-toggle-inactive {
-            background-color: #3f3f46; /* zinc-700 */
-            color: #ffffff;
-        }
-        /* Compacted button styles */
-        .btn-count {
-            width: 2.75rem; /* 44px */
-            height: 2.75rem; /* 44px */
-            font-size: 1.5rem; /* 24px */
-            line-height: 1;
-            flex-shrink: 0; /* Prevent shrinking in flexbox */
-        }
-        /* Compacted count display */
-        .count-display {
-            min-width: 40px;
-            font-size: 1.5rem; /* 24px */
-            font-weight: 700;
-        }
-        .checkbox-custom {
-            width: 1.25em; /* 20px */
-            height: 1.25em;
-            accent-color: #eab308;
-            flex-shrink: 0;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
+  <title>Posible Studio Calculators</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='50' fill='%23facc15'/></svg>" />
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+
+  <!-- Firebase v8 SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+  <!-- React and ReactDOM -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+  <style>
+    :root {
+        --studio-yellow: #fde047;
+        --studio-green: #064e3b;
+        --studio-green-dark: #022c22;
+    }
+    body { 
+        background-color: var(--studio-green);
+        color: var(--studio-yellow);
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        background-image: radial-gradient(circle at 10% 10%, rgba(253, 224, 71, 0.05) 0%, transparent 25%),
+                          radial-gradient(circle at 90% 90%, rgba(253, 224, 71, 0.05) 0%, transparent 25%);
+        margin: 0; padding: 0;
+    }
+    
+    .glass-card {
+        background: rgba(2, 44, 34, 0.95);
+        backdrop-filter: blur(20px);
+        border: 1px solid rgba(253, 224, 71, 0.15);
+        border-radius: 2rem;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        width: 100%;
+        max-width: 480px;
+    }
+
+    .stepper-btn {
+        width: 32px; height: 32px;
+        display: flex; align-items: center; justify-content: center;
+        border-radius: 8px;
+        background: var(--studio-yellow);
+        color: var(--studio-green);
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .stepper-btn:disabled { opacity: 0.1; cursor: not-allowed; filter: grayscale(1); }
+    
+    .tabular-nums { font-variant-numeric: tabular-nums; }
+    .modal-overlay { background: rgba(2, 44, 34, 0.9); backdrop-filter: blur(10px); }
+    .modal-content { animation: slideUp 0.3s ease-out; }
+    @keyframes slideUp { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+    .btn-toggle-active { background-color: var(--studio-yellow); color: var(--studio-green); }
+    .btn-toggle-inactive { background-color: rgba(255, 255, 255, 0.05); color: white; border: 1px solid rgba(255, 255, 255, 0.1); }
+
+    .cal-day { aspect-ratio: 1/1; display: flex; align-items: center; justify-content: center; border-radius: 0.5rem; font-size: 0.75rem; cursor: pointer; transition: all 0.2s; }
+    .cal-day-booked { background: #ef4444; color: white; }
+    .cal-day-partial { background: #f97316; color: white; }
+    .cal-day-today { border: 2px solid var(--studio-yellow); }
+    .cal-day-selected { background: var(--studio-yellow); color: var(--studio-green); font-weight: 800; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
 </head>
-<body class="bg-black text-white p-4 flex items-center justify-center min-h-screen">
+<body class="min-h-[100dvh] flex flex-col items-center p-3 md:p-6 overflow-x-hidden">
+  <div id="root" class="w-full flex flex-col items-center"></div>
 
-    <!-- 
-      Main container
-      - Mobile: max-w-sm (small, single column)
-      - Desktop: md:max-w-3xl (wider, for two columns)
-    -->
-    <div class="w-full max-w-sm bg-gray-900 rounded-2xl shadow-2xl border border-zinc-800 p-5 md:max-w-3xl md:p-8">
+  <script type="module">
+    const { useState, useEffect, createElement, Fragment, useMemo } = window.React;
+    const ReactDOM = window.ReactDOM;
+
+    // --- Firebase Setup ---
+    const firebaseConfig = {
+      apiKey: "AIzaSyAIHIVv6dJ0LlNqP_0qkYNok7xsbxHgdRY",
+      authDomain: "studio-space-rental-database.firebaseapp.com",
+      databaseURL: "https://studio-space-rental-database-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "studio-space-rental-database",
+      storageBucket: "studio-space-rental-database.appspot.com",
+      messagingSenderId: "176375720882",
+      appId: "1:176375720882:web:ac012e2d33e8fec5ca52ab",
+      measurementId: "G-NWZ18H2CVT"
+    };
+
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    const rentalsRef = db.ref('rentals');
+
+    // --- Local Date Helper (Prevents UTC day shifting) ---
+    const getLocalDateString = (date = new Date()) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
+    // --- Hourly Calculator ---
+    function HourlyCalculator() {
+        const [cameras, setCameras] = useState(1);
+        const [hours, setHours] = useState(1);
+        const [isModalOpen, setIsModalOpen] = useState(false);
+        const rates = { 1: 2500, 2: 3500, 3: 4500 };
+
+        useEffect(() => { if (cameras === 3 && hours < 2) setHours(2); }, [cameras]);
+
+        const changeHours = (v) => { setHours(p => Math.max(cameras === 3 ? 2 : 1, p + v)); };
+        const changeCams = (v) => { setCameras(p => Math.min(3, Math.max(1, p + v))); };
+        const total = rates[cameras] * hours;
+
+        const equipment = ["FX30 Camera and Sigma Lenses", "Nanlite 300b", "Godox TL60 RBG Tubes", "Shure SM7db Mics", "DJI Wireless Mics", "Zoom H6 Recorder"];
+
+        return createElement('div', { className: "glass-card p-5 md:p-10 space-y-4 md:space-y-6" },
+            createElement('header', { className: "text-center" },
+                createElement('div', { className: "inline-block px-3 py-0.5 rounded-full bg-yellow-400/10 text-yellow-400 text-[8px] md:text-[10px] font-black uppercase tracking-[0.2em] border border-yellow-400/20 mb-1" }, "Hourly Rental"),
+                createElement('h1', { className: "text-2xl md:text-4xl font-extrabold tracking-tight text-white" }, "Posible ", createElement('span', { className: "text-yellow-400" }, "Studio")),
+                createElement('p', { className: "text-yellow-400/40 text-[8px] md:text-[10px] font-bold uppercase tracking-[0.3em] mt-0.5" }, "Price Calculator")
+            ),
+            createElement('div', { className: "flex flex-row gap-2.5 items-end" },
+                createElement('div', { className: "flex-1" },
+                    createElement('label', { className: "block text-[8px] md:text-[10px] font-black uppercase tracking-widest text-yellow-400/30 mb-2" }, "Cams"),
+                    createElement('div', { className: "flex items-center justify-between bg-black/40 p-1 md:p-1.5 rounded-xl border border-white/5" },
+                        createElement('button', { onClick: () => changeCams(-1), disabled: cameras <= 1, className: "stepper-btn" }, "-"),
+                        createElement('div', { className: "text-xl md:text-3xl font-black text-white" }, cameras),
+                        createElement('button', { onClick: () => changeCams(1), disabled: cameras >= 3, className: "stepper-btn" }, "+")
+                    )
+                ),
+                createElement('div', { className: "flex-1" },
+                    createElement('div', { className: "flex justify-between items-center mb-2" },
+                        createElement('label', { className: "text-[8px] md:text-[10px] font-black uppercase tracking-widest text-yellow-400/30" }, "Hours"),
+                        cameras === 3 && createElement('span', { className: "px-1 py-0.5 rounded-sm bg-yellow-400 text-green-950 text-[6px] md:text-[8px] font-black uppercase" }, "Min 2")
+                    ),
+                    createElement('div', { className: "flex items-center justify-between bg-black/40 p-1 md:p-1.5 rounded-xl border border-white/5" },
+                        createElement('button', { onClick: () => changeHours(-1), disabled: hours <= (cameras === 3 ? 2 : 1), className: "stepper-btn" }, "-"),
+                        createElement('div', { className: "text-xl md:text-3xl font-black text-white tabular-nums" }, hours),
+                        createElement('button', { onClick: () => changeHours(1), className: "stepper-btn" }, "+")
+                    )
+                )
+            ),
+            createElement('div', { className: "space-y-3" },
+                createElement('button', { onClick: () => setIsModalOpen(true), className: "w-full py-2.5 rounded-xl bg-white/5 border border-white/10 text-yellow-400 text-[8px] md:text-[10px] font-black uppercase tracking-[0.2em]" }, "Equipment List"),
+                createElement('div', { className: "bg-yellow-400 rounded-2xl p-4 md:p-6 text-center shadow-xl shadow-yellow-400/10" },
+                    createElement('p', { className: "text-[8px] md:text-[10px] uppercase font-black text-green-950/40 mb-0.5" }, "Rental Price"),
+                    createElement('div', { className: "flex items-start justify-center text-green-950" },
+                        createElement('span', { className: "text-sm md:text-lg font-bold mt-1.5" }, "₹"),
+                        createElement('span', { className: "text-3xl md:text-5xl font-black tracking-tighter" }, total.toLocaleString('en-IN'))
+                    )
+                )
+            ),
+            isModalOpen && createElement('div', { className: "fixed inset-0 z-50 flex items-center justify-center p-4 modal-overlay", onClick: () => setIsModalOpen(false) },
+                createElement('div', { className: "bg-gray-900 w-full max-w-xs rounded-3xl p-6 modal-content", onClick: e => e.stopPropagation() },
+                    createElement('h2', { className: "text-sm font-black uppercase text-white mb-6" }, "Studio Gear"),
+                    createElement('div', { className: "space-y-3" }, equipment.map(item => createElement('div', { key: item, className: "flex items-center gap-3" }, createElement('div', { className: "w-1 h-1 rounded-full bg-yellow-400" }), createElement('span', { className: "text-xs font-bold text-yellow-400/80" }, item)))),
+                    createElement('button', { onClick: () => setIsModalOpen(false), className: "w-full mt-8 py-3 bg-yellow-400 text-green-950 font-black rounded-xl text-[9px]" }, "Done")
+                )
+            )
+        );
+    }
+
+    // --- Package Calculator ---
+    function PackageCalculator() {
+        const [cams, setCams] = useState(1);
+        const [reels, setReels] = useState(5);
+        const [vids, setVids] = useState(0);
+        const [posters, setPosters] = useState(0);
+        const [sameShoot, setSameShoot] = useState(true);
+
+        const reelRate = cams === 3 ? 4500 : 3500;
+        const editRate = cams === 1 ? 1500 : cams === 2 ? 2500 : 3500;
         
-        <!-- 
-          Header
-          - Mobile: text-center
-          - Desktop: md:text-left
-        -->
-        <div class="text-center mb-5 md:text-left md:mb-6">
-            <h1 class="text-2xl font-extrabold text-white mb-1 md:text-3xl">Possible Studio</h1>
-            <h2 class="text-lg font-bold text-yellow-500 md:text-xl">Monthly Package</h2>
-        </div>
+        let shootHours = Math.ceil(reels / 2) + (vids > 0 && !sameShoot ? Math.ceil(vids / 2) : 0);
+        if (vids > 0) shootHours = Math.max(shootHours, Math.ceil((vids * 15 + 30) / 60));
 
-        <!-- 
-          Responsive Layout Wrapper
-          - Mobile: Stacks children vertically (default block behavior)
-          - Desktop: md:grid md:grid-cols-2 (creates 2-column layout)
-        -->
-        <div class="space-y-5 md:grid md:grid-cols-2 md:gap-6 md:space-y-0">
+        let shootCost = 0;
+        if (shootHours > 0) {
+            if (cams === 1) shootCost = 1500 + Math.max(0, shootHours - 1) * 1000;
+            else if (cams === 2) shootCost = 2500 + Math.max(0, shootHours - 1) * 2000;
+            else shootCost = 3500 + (shootHours > 1 ? 3500 : 0) + (shootHours > 2 ? (shootHours - 2) * 2500 : 0);
+        }
 
-            <!-- === LEFT COLUMN (Inputs) === -->
-            <!-- 
-              On mobile, this div's children stack with space-y-5.
-              On desktop, this whole div becomes the first column.
-            -->
-            <div class="space-y-5 md:col-span-1">
-                
-                <!-- 1. Camera Setup -->
-                <div class="space-y-3">
-                    <label class="block text-base font-semibold text-gray-300">1. Camera Setup</label>
-                    <div class="grid grid-cols-3 gap-2">
-                        <button id="cam-1" class="btn-toggle btn-toggle-active w-full py-2 px-1 rounded-lg font-bold text-sm" onclick="setCameras(1)">
-                            Single Camera
-                        </button>
-                        <button id="cam-2" class="btn-toggle btn-toggle-inactive w-full py-2 px-1 rounded-lg font-bold text-sm" onclick="setCameras(2)">
-                            2 Camera
-                        </button>
-                        <button id="cam-3" class="btn-toggle btn-toggle-inactive w-full py-2 px-1 rounded-lg font-bold text-sm" onclick="setCameras(3)">
-                            3 Camera
-                        </button>
-                    </div>
-                </div>
+        const total = shootCost + (reels * reelRate) + (vids * editRate) + (posters * 500);
 
-                <!-- 2. Package Details (Consolidated Block) -->
-                <div class="space-y-3 bg-zinc-800 rounded-lg p-4">
-                    
-                    <!-- Reels -->
-                    <div class="flex justify-between items-center">
-                        <label class="text-base font-medium text-gray-300">Reels (Min 5)</label>
-                        <div class="flex items-center space-x-3">
-                            <button class="btn-count bg-zinc-700 text-yellow-500 rounded-full font-bold hover:bg-zinc-600" onclick="updateCount('reels', -1)">-</button>
-                            <span id="reels-count" class="count-display text-yellow-500 text-center">5</span>
-                            <button class="btn-count bg-zinc-700 text-yellow-500 rounded-full font-bold hover:bg-zinc-600" onclick="updateCount('reels', 1)">+</button>
-                        </div>
-                    </div>
+        const Stepper = (val, set, min = 0) => createElement('div', { className: "flex items-center space-x-2" },
+            createElement('button', { onClick: () => set(Math.max(min, val - 1)), className: "stepper-btn" }, "-"),
+            createElement('span', { className: "w-6 text-center font-bold text-yellow-400 text-sm" }, val),
+            createElement('button', { onClick: () => set(val + 1), className: "stepper-btn" }, "+")
+        );
 
-                    <hr class="border-zinc-700">
+        return createElement('div', { className: "glass-card p-5 md:p-10 space-y-4" },
+            createElement('header', { className: "text-center" },
+                createElement('div', { className: "inline-block px-3 py-0.5 rounded-full bg-yellow-400/10 text-yellow-400 text-[8px] md:text-[10px] font-black uppercase border border-yellow-400/20 mb-1" }, "Monthly Package"),
+                createElement('h2', { className: "text-2xl md:text-3xl font-extrabold text-white" }, "Possible Studio")
+            ),
+            createElement('div', { className: "space-y-4" },
+                createElement('div', { className: "grid grid-cols-3 gap-1.5" },
+                    [1, 2, 3].map(n => createElement('button', { key: n, onClick: () => setCams(n), className: `py-2 rounded-lg text-[10px] font-bold ${cams === n ? 'btn-toggle-active' : 'btn-toggle-inactive'}` }, `${n} Cam`))
+                ),
+                createElement('div', { className: "bg-black/30 p-4 rounded-xl space-y-3 border border-white/5" },
+                    createElement('div', { className: "flex justify-between items-center" }, createElement('span', { className: "text-xs font-bold text-gray-300" }, "Reels (Min 5)"), Stepper(reels, setReels, 5)),
+                    createElement('div', { className: "flex justify-between items-center" }, createElement('div', null, createElement('span', { className: "text-xs font-bold text-gray-300 block" }, "Full Videos"), createElement('span', { className: "text-[9px] text-gray-500" }, "8-15 min")), Stepper(vids, setVids)),
+                    vids > 0 && createElement('label', { className: "flex items-center gap-2 cursor-pointer" }, createElement('input', { type: "checkbox", checked: sameShoot, onChange: e => setSameShoot(e.target.checked), className: "w-4 h-4 accent-yellow-400" }), createElement('span', { className: "text-[10px] text-gray-400" }, "Same shoot for reels & video")),
+                    createElement('div', { className: "flex justify-between items-center" }, createElement('span', { className: "text-xs font-bold text-gray-300" }, "Posters"), Stepper(posters, setPosters))
+                )
+            ),
+            createElement('div', { className: "grid grid-cols-2 gap-2" },
+                createElement('div', { className: "bg-white/5 p-3 rounded-xl text-center" }, createElement('span', { className: "text-[9px] text-gray-500 block" }, "Shoot Time"), createElement('span', { className: "text-xl font-bold text-white" }, `${shootHours} Hrs`)),
+                createElement('div', { className: "bg-yellow-400 p-3 rounded-xl text-center shadow-lg shadow-yellow-400/10" }, createElement('span', { className: "text-[9px] text-green-950/50 block" }, "Total Est."), createElement('span', { className: "text-xl font-black text-green-950" }, `₹${total.toLocaleString('en-IN')}`))
+            )
+        );
+    }
 
-                    <!-- Full Length Videos (with checkbox) -->
-                    <div class="space-y-2">
-                        <div class="flex justify-between items-center">
-                            <div>
-                                <label class="text-base font-medium text-gray-300">Full Length Videos</label>
-                                <p class="text-xs text-gray-400" style="margin-top: -2px;">8-15 min. (Over 15 min = 2 videos)</p>
-                            </div>
-                            <div class="flex items-center space-x-3">
-                                <button class="btn-count bg-zinc-700 text-yellow-500 rounded-full font-bold hover:bg-zinc-600" onclick="updateCount('fullLength', -1)">-</button>
-                                <span id="full-length-count" class="count-display text-yellow-500 text-center">0</span>
-                                <button class="btn-count bg-zinc-700 text-yellow-500 rounded-full font-bold hover:bg-zinc-600" onclick="updateCount('fullLength', 1)">+</button>
-                            </div>
-                        </div>
-                        <!-- Total Duration -->
-                        <div id="duration-container" class="text-right text-sm text-yellow-500 font-medium" style="margin-top: -4px; padding-right: 2px; display: none;">
-                            Total Duration: <span id="full-length-duration">0 mins</span>
-                        </div>
-                        <!-- "Same Shoot" Checkbox -->
-                        <div id="same-shoot-container" class="flex items-center space-x-2 pt-1 pl-1">
-                            <input type="checkbox" id="same-shoot" class="checkbox-custom" checked onchange="calculatePrice()">
-                            <label for="same-shoot" class="text-gray-300 text-sm">Same video for reel and Full length video</label>
-                        </div>
-                    </div>
+    // --- Slot Availability ---
+    function SlotAvailability() {
+        const [selectedDate, setSelectedDate] = useState(getLocalDateString());
+        const [bookings, setBookings] = useState([]);
+        const [currentMonth, setCurrentMonth] = useState(new Date());
 
-                    <hr class="border-zinc-700">
-
-                    <!-- Posters -->
-                    <div class="flex justify-between items-center">
-                        <label class="text-base font-medium text-gray-300">Posters</label>
-                        <div class="flex items-center space-x-3">
-                            <button class="btn-count bg-zinc-700 text-yellow-500 rounded-full font-bold hover:bg-zinc-600" onclick="updateCount('posters', -1)">-</button>
-                            <span id="posters-count" class="count-display text-yellow-500 text-center">0</span>
-                            <button class="btn-count bg-zinc-700 text-yellow-500 rounded-full font-bold hover:bg-zinc-600" onclick="updateCount('posters', 1)">+</button>
-                        </div>
-                    </div>
-                </div>
-            </div> <!-- End Left Column -->
-
-
-            <!-- === RIGHT COLUMN (Estimation) === -->
-            <!-- 
-              On mobile, this div stacks below the left column.
-              On desktop, this becomes the second column.
-            -->
-            <div class="md:col-span-1">
-                <!-- Estimation (Compacted) -->
-                <div class="bg-zinc-800 rounded-lg p-4">
-                    <div class="grid grid-cols-2 divide-x divide-zinc-700 text-center">
-                        <div class="pr-2">
-                            <div class="text-sm font-medium text-gray-400">Allotted Shoot Time</div>
-                            <div id="shoot-time" class="text-2xl font-extrabold text-white mt-1">0 Hrs</div>
-                        </div>
-                        <div class="pl-2">
-                            <div class="text-sm font-medium text-gray-400">Total Estimation</div>
-                            <div id="total-price" class="text-2xl font-extrabold text-yellow-500 mt-1">₹0</div>
-                        </div>
-                    </div>
-                </div>
-            </div> <!-- End Right Column -->
-
-        </div> <!-- End Responsive Layout Wrapper -->
-
-    </div> <!-- End Main Container -->
-
-    <script>
-        // --- STATE ---
-        let state = {
-            cameras: 1,
-            reels: 5,
-            fullLength: 0,
-            posters: 0,
-            sameShoot: true
-        };
-
-        // --- DOM ELEMENTS ---
-        const elements = {
-            cam1: document.getElementById('cam-1'),
-            cam2: document.getElementById('cam-2'),
-            cam3: document.getElementById('cam-3'),
-            reelsCount: document.getElementById('reels-count'),
-            fullLengthCount: document.getElementById('full-length-count'),
-            fullLengthDuration: document.getElementById('full-length-duration'),
-            durationContainer: document.getElementById('duration-container'),
-            postersCount: document.getElementById('posters-count'),
-            sameShootCheck: document.getElementById('same-shoot'),
-            sameShootContainer: document.getElementById('same-shoot-container'),
-            shootTime: document.getElementById('shoot-time'),
-            totalPrice: document.getElementById('total-price')
-        };
-        
-        // --- FUNCTIONS ---
-
-        // Set number of cameras
-        function setCameras(num) {
-            state.cameras = num;
-            
-            // Update button styles
-            [elements.cam1, elements.cam2, elements.cam3].forEach((btn, index) => {
-                if (index + 1 === num) {
-                    btn.classList.replace('btn-toggle-inactive', 'btn-toggle-active');
-                } else {
-                    btn.classList.replace('btn-toggle-active', 'btn-toggle-inactive');
-                }
+        useEffect(() => {
+            const listener = rentalsRef.on('value', snap => {
+                const data = [];
+                snap.forEach(child => {
+                    const val = child.val();
+                    if (val && val.bookingSegments) {
+                        val.bookingSegments.forEach(seg => {
+                            data.push({ 
+                                date: seg.date, 
+                                start: seg.startTime, 
+                                end: seg.endTime || '23:59', 
+                                type: val.isPossibleStudioShoot ? 'Possible' : (val.isInHouseClient ? 'InHouse' : 'Rental'),
+                                client: val.clientName
+                            });
+                        });
+                    }
+                });
+                setBookings(data);
             });
-            
-            calculatePrice();
-        }
+            return () => rentalsRef.off('value', listener);
+        }, []);
 
-        // Update counts for Reels, Full Length, Posters
-        function updateCount(type, amount) {
-            let min = 0;
-            if (type === 'reels') min = 5; // Reels have a minimum of 5
-            
-            if (state[type] + amount >= min) {
-                state[type] += amount;
-            }
-            
-            calculatePrice();
-        }
+        const daysInMonth = useMemo(() => {
+            const year = currentMonth.getFullYear();
+            const month = currentMonth.getMonth();
+            const date = new Date(year, month, 1);
+            const days = [];
+            while (date.getMonth() === month) { days.push(new Date(date)); date.setDate(date.getDate() + 1); }
+            return days;
+        }, [currentMonth]);
 
-        // Main calculation logic
-        function calculatePrice() {
-            // Read checkbox state
-            state.sameShoot = elements.sameShootCheck.checked;
+        const selectedDayBookings = useMemo(() => {
+            return bookings.filter(b => b.date === selectedDate).sort((a,b) => a.start.localeCompare(b.start));
+        }, [bookings, selectedDate]);
 
-            let totalShootHours = 0;
-            let totalShootCost = 0;
-            let totalReelCost = 0;
-            let totalFullLengthCost = 0;
-            let totalPosterCost = 0;
+        return createElement('div', { className: "glass-card p-5 md:p-8 space-y-6" },
+            createElement('header', { className: "text-center" },
+                createElement('div', { className: "inline-block px-3 py-0.5 rounded-full bg-yellow-400/10 text-yellow-400 text-[8px] md:text-[10px] font-black uppercase tracking-[0.2em] border border-yellow-400/20 mb-1" }, "Slot Finder"),
+                createElement('h2', { className: "text-2xl font-extrabold text-white" }, "Availability")
+            ),
 
-            const cam = state.cameras;
-            const reels = state.reels;
-            const fullLength = state.fullLength;
-            const posters = state.posters;
+            createElement('div', { className: "space-y-4" },
+                createElement('div', { className: "flex justify-between items-center px-2" },
+                    createElement('button', { onClick: () => setCurrentMonth(new Date(currentMonth.setMonth(currentMonth.getMonth()-1))), className: "text-yellow-400 font-black p-2" }, "<"),
+                    createElement('span', { className: "text-sm font-bold text-white uppercase tracking-widest" }, 
+                        currentMonth.toLocaleDateString('default', { month: 'long', year: 'numeric' })
+                    ),
+                    createElement('button', { onClick: () => setCurrentMonth(new Date(currentMonth.setMonth(currentMonth.getMonth()+1))), className: "text-yellow-400 font-black p-2" }, ">")
+                ),
+                createElement('div', { className: "grid grid-cols-7 gap-1" },
+                    ['S','M','T','W','T','F','S'].map(d => createElement('div', { key: d, className: "text-center text-[8px] text-gray-500 font-black py-1" }, d)),
+                    Array(daysInMonth[0].getDay()).fill(null).map((_, i) => createElement('div', { key: `empty-${i}` })),
+                    daysInMonth.map(date => {
+                        const dateStr = getLocalDateString(date);
+                        const dayBookings = bookings.filter(b => b.date === dateStr);
+                        const isToday = dateStr === getLocalDateString();
+                        const isSelected = dateStr === selectedDate;
+                        let statusCls = "";
+                        if (dayBookings.length > 0) {
+                            statusCls = dayBookings.some(b => !b.end || (b.start === "00:00" && b.end === "23:59")) ? "cal-day-booked" : "cal-day-partial";
+                        }
+                        return createElement('div', { 
+                            key: dateStr, 
+                            onClick: () => setSelectedDate(dateStr),
+                            className: `cal-day ${statusCls} ${isToday ? 'cal-day-today' : ''} ${isSelected ? 'cal-day-selected' : 'bg-white/5 text-gray-300'}`
+                        }, date.getDate());
+                    })
+                )
+            ),
 
-            // --- 1. Calculate Total Shoot Hours ---
-            // 1 hour for every 2 reels, rounded up
-            let reelShootHours = Math.ceil(reels / 2);
-            
-            let fullLengthShootHours = 0;
-            if (fullLength > 0 && !state.sameShoot) {
-                // 1 hour for every 2 full length videos, rounded up
-                fullLengthShootHours = Math.ceil(fullLength / 2);
-            }
-            
-            totalShootHours = reelShootHours + fullLengthShootHours;
+            createElement('div', { className: "bg-black/30 rounded-xl overflow-hidden border border-white/5" },
+                createElement('div', { className: "p-3 bg-white/5 border-b border-white/5 text-[10px] font-black text-yellow-400 uppercase tracking-widest" }, 
+                    new Date(selectedDate).toLocaleDateString('default', { day: 'numeric', month: 'short', weekday: 'long' })
+                ),
+                createElement('div', { className: "max-h-[220px] overflow-y-auto no-scrollbar p-2 space-y-2" },
+                    selectedDayBookings.length > 0 ? 
+                        selectedDayBookings.map((b, idx) => createElement('div', { key: idx, className: "p-3 rounded-xl bg-red-500/10 border border-red-500/20" },
+                            createElement('div', { className: "flex justify-between items-center mb-1" },
+                                createElement('span', { className: "text-[9px] font-black text-red-400 uppercase tracking-widest" }, b.type),
+                                createElement('span', { className: "text-[10px] font-bold text-gray-400 tabular-nums" }, `${b.start} - ${b.end}`)
+                            ),
+                            createElement('div', { className: "text-xs font-bold text-white" }, b.client || 'Studio Shoot')
+                        )) :
+                        createElement('div', { className: "py-10 text-center" },
+                            createElement('div', { className: "inline-block mb-2 p-2 rounded-full bg-emerald-500/10" }, 
+                                createElement('svg', { className: "w-5 h-5 text-emerald-400", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor" }, 
+                                    createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M5 13l4 4L19 7" })
+                                )
+                            ),
+                            createElement('p', { className: "text-[10px] font-black text-emerald-400 uppercase tracking-[0.2em]" }, "Studio Free - No Bookings")
+                        )
+                )
+            ),
 
-            // --- 1b. Apply New Minimum Shoot Time Rule ---
-            // "Always maintain allotted shoot time 30 higher than Full length video total"
-            if (fullLength > 0) {
-                // total duration in minutes
-                const totalFullLengthDurationMins = state.fullLength * 15;
-                // minimum shoot time in minutes (duration + 30)
-                const minShootTimeMins = totalFullLengthDurationMins + 30;
-                // minimum shoot time in hours, rounded up
-                const minShootTimeHours = Math.ceil(minShootTimeMins / 60);
-                
-                // Ensure totalShootHours is at least this new minimum
-                totalShootHours = Math.max(totalShootHours, minShootTimeHours);
-            }
+            createElement('div', { className: "flex justify-center gap-4" },
+                createElement('div', { className: "flex items-center gap-1.5" }, createElement('div', { className: "w-2 h-2 rounded bg-white/10" }), createElement('span', { className: "text-[8px] font-bold text-gray-500" }, "Available")),
+                createElement('div', { className: "flex items-center gap-1.5" }, createElement('div', { className: "w-2 h-2 rounded bg-orange-500" }), createElement('span', { className: "text-[8px] font-bold text-gray-500" }, "Partial")),
+                createElement('div', { className: "flex items-center gap-1.5" }, createElement('div', { className: "w-2 h-2 rounded bg-red-500" }), createElement('span', { className: "text-[8px] font-bold text-gray-500" }, "Full Day"))
+            )
+        );
+    }
 
-            // --- 2. Calculate Total Shoot Cost ---
-            if (totalShootHours > 0) {
-                if (cam === 1) {
-                    // 1 Cam: 1500 base + 1000/hr extra
-                    totalShootCost = 1500 + Math.max(0, totalShootHours - 1) * 1000;
-                } else if (cam === 2) {
-                    // 2 Cam: 2500 base + 2000/hr extra
-                    totalShootCost = 2500 + Math.max(0, totalShootHours - 1) * 2000;
-                } else if (cam === 3) {
-                    // 3 Cam: 3500 base, +3500 for 2nd hr, +2500/hr for remaining
-                    totalShootCost = 3500; // 1st hour
-                    if (totalShootHours > 1) {
-                        totalShootCost += 3500; // 2nd hour
-                    }
-                    if (totalShootHours > 2) {
-                        totalShootCost += (totalShootHours - 2) * 2500; // 3rd+ hours
-                    }
-                }
-            }
+    // --- Main App ---
+    function App() {
+        const [tab, setTab] = useState('hourly');
+        return createElement(Fragment, null,
+            createElement('nav', { className: "flex bg-black/40 p-1 rounded-full mb-6 border border-white/10" },
+                createElement('button', { onClick: () => setTab('hourly'), className: `px-4 md:px-6 py-2 rounded-full text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all ${tab === 'hourly' ? 'bg-yellow-400 text-green-950' : 'text-gray-500'}` }, "Hourly"),
+                createElement('button', { onClick: () => setTab('package'), className: `px-4 md:px-6 py-2 rounded-full text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all ${tab === 'package' ? 'bg-yellow-400 text-green-950' : 'text-gray-500'}` }, "Package"),
+                createElement('button', { onClick: () => setTab('avail'), className: `px-4 md:px-6 py-2 rounded-full text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all ${tab === 'avail' ? 'bg-yellow-400 text-green-950' : 'text-gray-500'}` }, "Availability")
+            ),
+            tab === 'hourly' ? createElement(HourlyCalculator) : 
+            tab === 'package' ? createElement(PackageCalculator) : 
+            createElement(SlotAvailability)
+        );
+    }
 
-            // --- 3. Calculate Reel Cost ---
-            // 3-cam setup has a different reel price
-            const reelRate = (cam === 3) ? 4500 : 3500;
-            totalReelCost = reels * reelRate;
-
-            // --- 4. Calculate Full Length Video Cost ---
-            if (fullLength > 0) {
-                // 1 hour editing per video, cost depends on camera
-                let editRate = 1500; // 1 cam
-                if (cam === 2) editRate = 2500;
-                if (cam === 3) editRate = 3500;
-                totalFullLengthCost = fullLength * editRate;
-            }
-
-            // --- 5. Calculate Poster Cost ---
-            totalPosterCost = posters * 500;
-            
-            // --- 6. Calculate Total Price ---
-            const total = totalShootCost + totalReelCost + totalFullLengthCost + totalPosterCost;
-            
-            // --- 7. Update UI ---
-            updateUI(total, totalShootHours);
-        }
-
-        // Update the UI with new values
-        function updateUI(total, shootHours) {
-            // Update counts
-            elements.reelsCount.textContent = state.reels;
-            elements.fullLengthCount.textContent = state.fullLength;
-            elements.postersCount.textContent = state.posters;
-            
-            // Calculate and update duration
-            const totalDuration = state.fullLength * 15;
-            elements.fullLengthDuration.textContent = `${totalDuration} mins`;
-
-            // Hide/show conditional elements
-            if (state.fullLength > 0) {
-                elements.durationContainer.style.display = 'block';
-                // "Same video" checkbox only makes sense if both reels and videos are selected
-                if (state.reels > 4) {
-                    elements.sameShootContainer.style.display = 'flex';
-                } else {
-                    elements.sameShootContainer.style.display = 'none';
-                }
-            } else {
-                elements.durationContainer.style.display = 'none';
-                elements.sameShootContainer.style.display = 'none';
-            }
-            
-            // Update totals
-            const formatter = new Intl.NumberFormat('en-IN');
-            elements.totalPrice.textContent = `₹${formatter.format(total)}`;
-            elements.shootTime.textContent = `${shootHours} Hrs`;
-        }
-
-        // --- INITIALIZATION ---
-        // Run once on page load to set initial state
-        document.addEventListener('DOMContentLoaded', () => {
-            calculatePrice();
-        });
-
-    </script>
+    ReactDOM.createRoot(document.getElementById('root')).render(createElement(App));
+  </script>
 </body>
 </html>
