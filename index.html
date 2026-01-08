@@ -71,53 +71,266 @@
         const [selectedDate, setSelectedDate] = useState(getLocalDateString());
         const [bookings, setBookings] = useState([]);
         const [currentMonth, setCurrentMonth] = useState(new Date());
+
+        const toMinutes = (t) => {
+            if (!t) return null;
+            const parts = String(t).split(':');
+            if (parts.length < 2) return null;
+            const h = parseInt(parts[0], 10);
+            const m = parseInt(parts[1], 10);
+            if (Number.isNaN(h) || Number.isNaN(m)) return null;
+            return h * 60 + m;
+        };
+
+        const minutesToTime = (mins) => {
+            const h = String(Math.floor(mins / 60)).padStart(2, '0');
+            const m = String(mins % 60).padStart(2, '0');
+            return `${h}:${m}`;
+        };
+
+        const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+
+        const mergeIntervals = (intervals) => {
+            const arr = intervals
+                .filter(i => i && i.end > i.start)
+                .sort((a, b) => a.start - b.start);
+            const out = [];
+            for (const cur of arr) {
+                const last = out[out.length - 1];
+                if (!last || cur.start > last.end) out.push({ ...cur });
+                else last.end = Math.max(last.end, cur.end);
+            }
+            return out;
+        };
+
+        const subtractFromOpenHours = (openStart, openEnd, busy) => {
+            const free = [];
+            let cur = openStart;
+            for (const b of busy) {
+                if (b.start > cur) free.push({ start: cur, end: b.start });
+                cur = Math.max(cur, b.end);
+            }
+            if (cur < openEnd) free.push({ start: cur, end: openEnd });
+            return free;
+        };
+
+        const getOpenHours = (dateStr) => {
+            const d = new Date(`${dateStr}T00:00:00`);
+            const day = d.getDay();
+            const isSunday = day === 0;
+            const isSaturday = day === 6;
+
+            if (isSunday) {
+                return { isSunday: true, isSaturday: false, openStart: null, openEnd: null, isHoliday: true };
+            }
+
+            const openStart = 10 * 60;
+            const openEnd = isSaturday ? 17 * 60 : 19 * 60;
+            return { isSunday: false, isSaturday, openStart, openEnd, isHoliday: false };
+        };
+
+        const getDayInfo = (dateStr, dayBookings) => {
+            const { isSunday, isSaturday, openStart, openEnd, isHoliday } = getOpenHours(dateStr);
+
+            if (isHoliday) {
+                return { isSunday, isSaturday, openStart, openEnd, isHoliday: true, fullDayBlocks: [], busyMerged: [], free: [] };
+            }
+
+            const fullDayBlocks = (dayBookings || []).filter(b => b.isFullDayBlock);
+            if (fullDayBlocks.length > 0) {
+                return { isSunday, isSaturday, openStart, openEnd, isHoliday: false, fullDayBlocks, busyMerged: [], free: [] };
+            }
+
+            const busyIntervals = (dayBookings || [])
+                .filter(b => !b.isFullDayBlock)
+                .map(b => {
+                    const s = toMinutes(b.start) ?? openStart;
+                    const eRaw = toMinutes(b.end);
+                    const e = eRaw == null ? openEnd : eRaw;
+                    const start = clamp(s, openStart, openEnd);
+                    const end = clamp(e, openStart, openEnd);
+                    return { start, end, client: b.client };
+                });
+
+            const busyMerged = mergeIntervals(busyIntervals);
+            const free = subtractFromOpenHours(openStart, openEnd, busyMerged);
+            return { isSunday, isSaturday, openStart, openEnd, isHoliday: false, fullDayBlocks: [], busyMerged, free };
+        };
+
         useEffect(() => {
-            rentalsRef.on('value', snap => {
+            const onData = (snap) => {
                 const data = [];
                 snap.forEach(child => {
                     const val = child.val();
                     if (val && val.bookingSegments) {
+                        const isFullDayBlock =
+                            val.markUnavailable === true ||
+                            val.isNotAvailable === true ||
+                            val.isPossibleStudioShoot ||
+                            val.isInHouseClient;
+
+                        const blockReason =
+                            val.markUnavailable === true ? 'Marked as Not Available' :
+                            (val.isPossibleStudioShoot ? 'Possible Studio Shoot' :
+                            (val.isInHouseClient ? 'InHouse Client' : 'Blocked'));
+
                         val.bookingSegments.forEach(seg => {
-                            // AVAILABILITY LOGIC FIX:
-                            // We look at the PARENT booking object (val) to determine if it is blocked
-                            const isBlocked = val.isNotAvailable === true || val.isPossibleStudioShoot || val.isInHouseClient;
-                            data.push({ date: seg.date, start: seg.startTime, end: seg.endTime||'23:59', isBlocked: isBlocked, type: isBlocked ? 'Blocked' : 'Rental', client: val.clientName });
+                            data.push({
+                                date: seg.date,
+                                start: seg.startTime,
+                                end: seg.endTime || null,
+                                isFullDayBlock,
+                                blockReason,
+                                client: val.clientName
+                            });
                         });
                     }
                 });
                 setBookings(data);
-            });
+            };
+
+            rentalsRef.on('value', onData);
+            return () => rentalsRef.off('value', onData);
         }, []);
-        const daysInMonth = useMemo(() => { const d=new Date(currentMonth.getFullYear(),currentMonth.getMonth(),1); const res=[]; while(d.getMonth()===currentMonth.getMonth()){res.push(new Date(d));d.setDate(d.getDate()+1);} return res; }, [currentMonth]);
-        const selectedDayBookings = useMemo(() => bookings.filter(b=>b.date===selectedDate).sort((a,b)=>a.start.localeCompare(b.start)), [bookings,selectedDate]);
+
+        const bookingsByDate = useMemo(() => {
+            const map = {};
+            bookings.forEach(b => {
+                if (!b || !b.date) return;
+                (map[b.date] = map[b.date] || []).push(b);
+            });
+            Object.values(map).forEach(arr => arr.sort((a, b) => (a.start || '').localeCompare(b.start || '')));
+            return map;
+        }, [bookings]);
+
+        const daysInMonth = useMemo(() => {
+            const d = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+            const res = [];
+            while (d.getMonth() === currentMonth.getMonth()) {
+                res.push(new Date(d));
+                d.setDate(d.getDate() + 1);
+            }
+            return res;
+        }, [currentMonth]);
+
+        const selectedDayBookings = useMemo(() => bookingsByDate[selectedDate] || [], [bookingsByDate, selectedDate]);
+        const selectedInfo = useMemo(() => getDayInfo(selectedDate, selectedDayBookings), [selectedDate, selectedDayBookings]);
 
         return createElement('div', { className: "glass-card p-5 md:p-8 space-y-6" },
-            createElement('header', { className: "text-center" }, createElement('div', { className: "inline-block px-3 py-0.5 rounded-full bg-yellow-400/10 text-yellow-400 text-[8px] md:text-[10px] font-black uppercase tracking-[0.2em] border border-yellow-400/20 mb-1" }, "Slot Finder"), createElement('h2', { className: "text-2xl font-extrabold text-white" }, "Availability")),
-            createElement('div', { className: "space-y-4" },
-                createElement('div', { className: "flex justify-between items-center px-2" }, createElement('button', { onClick: () => setCurrentMonth(new Date(currentMonth.setMonth(currentMonth.getMonth()-1))), className: "text-yellow-400 font-black p-2" }, "<"), createElement('span', { className: "text-sm font-bold text-white uppercase tracking-widest" }, currentMonth.toLocaleDateString('default', { month: 'long', year: 'numeric' })), createElement('button', { onClick: () => setCurrentMonth(new Date(currentMonth.setMonth(currentMonth.getMonth()+1))), className: "text-yellow-400 font-black p-2" }, ">")),
-                createElement('div', { className: "grid grid-cols-7 gap-1" }, ['S','M','T','W','T','F','S'].map(d=>createElement('div',{key:d,className:"text-center text-[8px] text-gray-500 font-black py-1"},d)), Array(daysInMonth[0].getDay()).fill(null).map((_,i)=>createElement('div',{key:`e${i}`})), daysInMonth.map(date=>{
-                    const dateStr=getLocalDateString(date); const dayBookings=bookings.filter(b=>b.date===dateStr);
-                    let statusCls="bg-white/5 text-gray-300";
-                    if(dayBookings.length>0) {
-                        const hasFullBlock = dayBookings.some(b => b.isBlocked);
-                        statusCls = hasFullBlock ? "cal-day-booked" : "cal-day-partial";
-                    }
-                    return createElement('div', { key: dateStr, onClick: () => setSelectedDate(dateStr), className: `cal-day ${statusCls} ${dateStr===getLocalDateString()?'cal-day-today':''} ${dateStr===selectedDate?'cal-day-selected':''}` }, date.getDate());
-                }))
+            createElement('header', { className: "text-center" },
+                createElement('div', { className: "inline-block px-3 py-0.5 rounded-full bg-yellow-400/10 text-yellow-400 text-[8px] md:text-[10px] font-black uppercase tracking-[0.2em] border border-yellow-400/20 mb-1" }, "Slot Finder"),
+                createElement('h2', { className: "text-2xl font-extrabold text-white" }, "Availability")
             ),
-            createElement('div', { className: "bg-black/30 rounded-xl overflow-hidden border border-white/5" },
-                createElement('div', { className: "p-3 bg-white/5 border-b border-white/5 text-[10px] font-black text-yellow-400 uppercase tracking-widest" }, new Date(selectedDate).toLocaleDateString('default', { day: 'numeric', month: 'short', weekday: 'long' })),
-                createElement('div', { className: "max-h-[220px] overflow-y-auto no-scrollbar p-2 space-y-2" },
-                    selectedDayBookings.length > 0 ? selectedDayBookings.map((b,i)=>createElement('div',{key:i,className:`p-3 rounded-xl border ${b.isBlocked?'bg-red-500/10 border-red-500/20':'bg-orange-500/10 border-orange-500/20'}`},
-                        createElement('div', { className: "flex justify-between items-center mb-1" }, createElement('span', { className: `text-[9px] font-black uppercase tracking-widest ${b.isBlocked?'text-red-400':'text-orange-400'}` }, b.isBlocked?"BLOCKED":"RENTAL"), createElement('span', { className: "text-[10px] font-bold text-gray-400 tabular-nums" }, b.isBlocked?"Unavailable":`${formatTo12Hour(b.start)} - ${formatTo12Hour(b.end)}`)),
-                        createElement('div', { className: "text-xs font-bold text-white" }, b.isBlocked ? "Studio Unavailable" : (b.client||"Studio Shoot"))
-                    )) : createElement('div', { className: "py-10 text-center" }, createElement('p', { className: "text-[10px] font-black text-emerald-400 uppercase tracking-[0.2em]" }, "Studio Free"))
+
+            createElement('div', { className: "space-y-4" },
+                createElement('div', { className: "flex justify-between items-center px-2" },
+                    createElement('button', { onClick: () => setCurrentMonth(new Date(currentMonth.setMonth(currentMonth.getMonth() - 1))), className: "text-yellow-400 font-black p-2" }, "<"),
+                    createElement('span', { className: "text-sm font-bold text-white uppercase tracking-widest" }, currentMonth.toLocaleDateString('default', { month: 'long', year: 'numeric' })),
+                    createElement('button', { onClick: () => setCurrentMonth(new Date(currentMonth.setMonth(currentMonth.getMonth() + 1))), className: "text-yellow-400 font-black p-2" }, ">")
+                ),
+
+                createElement('div', { className: "grid grid-cols-7 gap-1" },
+                    ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(d => createElement('div', { key: d, className: "text-center text-[8px] text-gray-500 font-black py-1" }, d)),
+                    Array(daysInMonth[0].getDay()).fill(null).map((_, i) => createElement('div', { key: `e${i}` })),
+                    daysInMonth.map(date => {
+                        const dateStr = getLocalDateString(date);
+                        const dayBookings = bookingsByDate[dateStr] || [];
+                        const info = getDayInfo(dateStr, dayBookings);
+
+                        let statusCls = "bg-white/5 text-gray-300";
+                        if (info.isHoliday) {
+                            statusCls = "bg-gray-700 text-gray-500";
+                        } else if (dayBookings.length > 0) {
+                            const noFreeTime = info.fullDayBlocks.length > 0 || (info.free.length === 0 && info.busyMerged.length > 0);
+                            statusCls = noFreeTime ? "cal-day-booked" : "cal-day-partial";
+                        }
+
+                        return createElement('div', {
+                            key: dateStr,
+                            onClick: () => setSelectedDate(dateStr),
+                            className: `cal-day ${statusCls} ${dateStr === getLocalDateString() ? 'cal-day-today' : ''} ${dateStr === selectedDate ? 'cal-day-selected' : ''}`
+                        }, date.getDate());
+                    })
                 )
             ),
-            createElement('div', { className: "flex justify-center gap-4" }, createElement('div', { className: "flex items-center gap-1.5" }, createElement('div', { className: "w-2 h-2 rounded bg-white/10" }), createElement('span', { className: "text-[8px] font-bold text-gray-500" }, "Free")), createElement('div', { className: "flex items-center gap-1.5" }, createElement('div', { className: "w-2 h-2 rounded bg-orange-500" }), createElement('span', { className: "text-[8px] font-bold text-gray-500" }, "Partial")), createElement('div', { className: "flex items-center gap-1.5" }, createElement('div', { className: "w-2 h-2 rounded bg-red-500" }), createElement('span', { className: "text-[8px] font-bold text-gray-500" }, "Blocked")))
+
+            createElement('div', { className: "bg-black/30 rounded-xl overflow-hidden border border-white/5" },
+                createElement('div', { className: "p-3 bg-white/5 border-b border-white/5" },
+                    createElement('div', { className: "text-[10px] font-black text-yellow-400 uppercase tracking-widest" },
+                        new Date(selectedDate).toLocaleDateString('default', { day: 'numeric', month: 'short', weekday: 'long' })
+                    ),
+                    createElement('div', { className: "mt-1 text-[9px] font-bold text-gray-400" },
+                        selectedInfo.isHoliday ? "CLOSED - Sunday Holiday" : 
+                        (selectedInfo.isSaturday ? "Open: 10:00 AM - 5:00 PM (Saturday)" : "Open: 10:00 AM - 7:00 PM")
+                    )
+                ),
+
+                createElement('div', { className: "max-h-[260px] overflow-y-auto no-scrollbar p-2 space-y-2" },
+                    selectedInfo.isHoliday ? (
+                        createElement('div', { className: "p-3 rounded-xl border bg-gray-500/10 border-gray-500/20" },
+                            createElement('div', { className: "flex justify-between items-center mb-1" },
+                                createElement('span', { className: "text-[9px] font-black uppercase tracking-widest text-gray-400" }, "SUNDAY HOLIDAY"),
+                                createElement('span', { className: "text-[10px] font-bold text-gray-400" }, "Closed")
+                            ),
+                            createElement('div', { className: "text-xs font-bold text-white text-center py-4" }, "Studio is closed on Sundays")
+                        )
+                    ) : selectedInfo.fullDayBlocks.length > 0 ? (
+                        createElement('div', { className: "p-3 rounded-xl border bg-red-500/10 border-red-500/20" },
+                            createElement('div', { className: "flex justify-between items-center mb-1" },
+                                createElement('span', { className: "text-[9px] font-black uppercase tracking-widest text-red-400" }, "DAY NOT AVAILABLE"),
+                                createElement('span', { className: "text-[10px] font-bold text-gray-400" }, "Blocked")
+                            ),
+                            createElement('div', { className: "text-xs font-bold text-white" }, "This day is blocked"),
+                            createElement('div', { className: "mt-2 space-y-1" },
+                                selectedInfo.fullDayBlocks.map((b, i) =>
+                                    createElement('div', { key: i, className: "text-[11px] font-bold text-red-200" }, `${b.client || 'Booking'} (${b.blockReason})`)
+                                )
+                            )
+                        )
+                    ) : (
+                        createElement(Fragment, null,
+                            selectedInfo.free.length > 0 ? selectedInfo.free.map((s, i) =>
+                                createElement('div', {
+                                    key: `free-${i}`,
+                                    className: "p-3 rounded-xl border bg-emerald-500/10 border-emerald-500/20"
+                                },
+                                    createElement('div', { className: "flex justify-between items-center" },
+                                        createElement('span', { className: "text-[9px] font-black uppercase tracking-widest text-emerald-300" }, "AVAILABLE"),
+                                        createElement('span', { className: "text-[10px] font-bold text-gray-200 tabular-nums" }, `${formatTo12Hour(minutesToTime(s.start))} - ${formatTo12Hour(minutesToTime(s.end))}`)
+                                    )
+                                )
+                            ) : createElement('div', { className: "p-3 rounded-xl border bg-red-500/10 border-red-500/20" },
+                                createElement('div', { className: "flex justify-between items-center" },
+                                    createElement('span', { className: "text-[9px] font-black uppercase tracking-widest text-red-400" }, "NO AVAILABLE TIME"),
+                                    createElement('span', { className: "text-[10px] font-bold text-gray-300" }, "Fully booked")
+                                )
+                            ),
+
+                            selectedDayBookings.length > 0 ? createElement('div', { className: "pt-2" },
+                                createElement('div', { className: "text-[9px] font-black uppercase tracking-widest text-gray-500 px-1 mb-1" }, "Bookings"),
+                                selectedDayBookings.map((b, i) => createElement('div', {
+                                    key: `b-${i}`,
+                                    className: `p-3 rounded-xl border ${b.isFullDayBlock ? 'bg-red-500/10 border-red-500/20' : 'bg-orange-500/10 border-orange-500/20'}`
+                                },
+                                    createElement('div', { className: "flex justify-between items-center mb-1" },
+                                        createElement('span', { className: `text-[9px] font-black uppercase tracking-widest ${b.isFullDayBlock ? 'text-red-400' : 'text-orange-400'}` }, b.isFullDayBlock ? "BLOCKED" : "RENTAL"),
+                                        createElement('span', { className: "text-[10px] font-bold text-gray-400 tabular-nums" }, b.isFullDayBlock ? "Day" : `${formatTo12Hour(b.start)} - ${formatTo12Hour(b.end || minutesToTime(selectedInfo.openEnd))}`)
+                                    ),
+                                    createElement('div', { className: "text-xs font-bold text-white" }, b.client || (b.isFullDayBlock ? "Studio Unavailable" : "Booking"))
+                                ))
+                            ) : null
+                        )
+                    )
+                )
+            ),
+
+            createElement('div', { className: "flex justify-center gap-4" },
+                createElement('div', { className: "flex items-center gap-1.5" }, createElement('div', { className: "w-2 h-2 rounded bg-white/10" }), createElement('span', { className: "text-[8px] font-bold text-gray-500" }, "Free")),
+                createElement('div', { className: "flex items-center gap-1.5" }, createElement('div', { className: "w-2 h-2 rounded bg-orange-500" }), createElement('span', { className: "text-[8px] font-bold text-gray-500" }, "Partial")),
+                createElement('div', { className: "flex items-center gap-1.5" }, createElement('div', { className: "w-2 h-2 rounded bg-red-500" }), createElement('span', { className: "text-[8px] font-bold text-gray-500" }, "Blocked"))
+            )
         );
     }
-
     function App() {
         const [tab, setTab] = useState('hourly');
         return createElement(Fragment, null,
